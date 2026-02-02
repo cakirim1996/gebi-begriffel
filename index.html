@@ -202,6 +202,15 @@
     }
 
     .tile.pop .tileInner{ transform: scale(1.03); }
+    
+    .letter{
+  width:100%;
+  height:100%;
+  display:grid;
+  place-items:center;
+  border-radius: var(--tile-radius);
+  backface-visibility: hidden;
+}
 
     /* ===== Status ===== */
     .status{
@@ -424,14 +433,9 @@
         const inner = document.createElement("div");
         inner.className = "tileInner";
 
-        const front = document.createElement("div");
-        front.className = "face front";
-
-        const back = document.createElement("div");
-        back.className = "face back";
-
-        inner.appendChild(front);
-        inner.appendChild(back);
+                const letter = document.createElement("div");
+        letter.className = "letter";
+        inner.appendChild(letter);
         tile.appendChild(inner);
 
         row.appendChild(tile);
@@ -532,10 +536,9 @@
       return result;
     }
 
-    function setTileText(r, c, ch) {
+        function setTileText(r, c, ch) {
       const tile = tiles[r][c];
-      tile.querySelector(".front").textContent = ch || "";
-      tile.querySelector(".back").textContent  = ch || "";
+      tile.querySelector(".letter").textContent = ch || "";
     }
 
     function clearTileClasses(tile) {
