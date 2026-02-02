@@ -321,10 +321,20 @@
       p{ font-size: 14px; }
       .wrap{ max-height: 900px; }
     }
+    #confettiCanvas{
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 100000; /* über Modal */
+  display: none;   /* erst bei Win an */
+}
   </style>
 </head>
 
 <body>
+  <canvas id="confettiCanvas" aria-hidden="true"></canvas>
   <div class="stage">
     <main class="wrap" id="wrap">
       <header id="header">
@@ -640,7 +650,111 @@
       }
       recalcSizes();
     }
+// ===== Confetti (endlos) =====
+const confettiCanvas = document.getElementById("confettiCanvas");
+const cctx = confettiCanvas.getContext("2d");
 
+let confettiRunning = false;
+let confettiRAF = null;
+let confettiPieces = [];
+
+function resizeConfetti(){
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  confettiCanvas.width = Math.floor(window.innerWidth * dpr);
+  confettiCanvas.height = Math.floor(window.innerHeight * dpr);
+  cctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+}
+window.addEventListener("resize", resizeConfetti);
+window.addEventListener("orientationchange", () => setTimeout(resizeConfetti, 120));
+
+function rand(min, max){ return Math.random() * (max - min) + min; }
+
+function spawnPiece(){
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+  const size = rand(6, 12);
+  const colors = ["#22c55e","#eab308","#9ca3af","#111111","#ffffff"];
+  return {
+    x: rand(0, w),
+    y: rand(-40, -10),
+    vx: rand(-1.2, 1.2),
+    vy: rand(2.2, 4.6),
+    rot: rand(0, Math.PI * 2),
+    vr: rand(-0.15, 0.15),
+    size,
+    color: colors[(Math.random() * colors.length) | 0],
+    shape: Math.random() < 0.5 ? "rect" : "circle",
+    wobble: rand(0, Math.PI * 2),
+    wobbleSpeed: rand(0.02, 0.06),
+  };
+}
+
+function startConfetti(){
+  if (confettiRunning) return;
+  confettiRunning = true;
+
+  confettiCanvas.style.display = "block";
+  resizeConfetti();
+
+  // initial burst
+  confettiPieces = [];
+  for (let i = 0; i < 220; i++) confettiPieces.push(spawnPiece());
+
+  const tick = () => {
+    if (!confettiRunning) return;
+
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+
+    cctx.clearRect(0, 0, w, h);
+
+    // kontinuierlich nachspawnen => endlos
+    if (confettiPieces.length < 260) {
+      for (let i = 0; i < 6; i++) confettiPieces.push(spawnPiece());
+    }
+
+    for (let i = confettiPieces.length - 1; i >= 0; i--) {
+      const p = confettiPieces[i];
+
+      p.wobble += p.wobbleSpeed;
+      p.x += p.vx + Math.sin(p.wobble) * 0.6;
+      p.y += p.vy;
+      p.rot += p.vr;
+
+      // draw
+      cctx.save();
+      cctx.translate(p.x, p.y);
+      cctx.rotate(p.rot);
+      cctx.fillStyle = p.color;
+
+      if (p.shape === "rect") {
+        cctx.fillRect(-p.size/2, -p.size/2, p.size, p.size * 0.7);
+      } else {
+        cctx.beginPath();
+        cctx.arc(0, 0, p.size/2, 0, Math.PI * 2);
+        cctx.fill();
+      }
+
+      cctx.restore();
+
+      // wenn unten raus -> entfernen (kommt neu nach)
+      if (p.y > h + 30) confettiPieces.splice(i, 1);
+    }
+
+    confettiRAF = requestAnimationFrame(tick);
+  };
+
+  tick();
+}
+
+function stopConfetti(){
+  confettiRunning = false;
+  if (confettiRAF) cancelAnimationFrame(confettiRAF);
+  confettiRAF = null;
+  confettiPieces = [];
+  cctx.clearRect(0, 0, window.innerWidth, window.innerHeight);
+  confettiCanvas.style.display = "none";
+}
     // ===== Dictionary loading =====
     async function loadDictionary() {
       try {
