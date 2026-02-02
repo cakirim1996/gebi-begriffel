@@ -139,6 +139,9 @@
       border-radius: var(--tile-radius);
       user-select:none;
       overflow:hidden; /* ensures full fill looks clean */
+
+      /* FIX: Pop animiert jetzt außen, damit der Flip-Transform nicht überschrieben wird */
+      transition: transform 90ms ease;
     }
 
     .tileInner{
@@ -154,15 +157,13 @@
       text-transform:uppercase;
       background:#fff;
       transform-style: preserve-3d;
-
-      /* smoother + a bit slower */
       transition:
-        transform 860ms cubic-bezier(.2,.85,.2,1),
+        transform 700ms cubic-bezier(.18,.9,.22,1),
         border-color 220ms ease,
         background-color 220ms ease;
     }
 
-    /* FIX: Flip bleibt nach Reveal stehen (kein Zurückdrehen) */
+    /* FIX: Flip bleibt nach Reveal stehen (kein Zurückdrehen / kein Verschwinden) */
     .tile.flipped .tileInner{ transform: rotateX(180deg); }
 
     .face{
@@ -201,19 +202,8 @@
       color: inherit;
     }
 
-    .tile.pop .tileInner{ transform: scale(1.03); }
-    
-   .letter{
-  width:100%;
-  height:100%;
-  display:grid;
-  place-items:center;
-  border-radius: var(--tile-radius);
-  /* WICHTIG: sichtbar auf beiden Seiten */
-  backface-visibility: visible;
-  transform: translateZ(1px); /* verhindert “wegclippen” beim Flip */
-  pointer-events:none;
-}
+    /* FIX: Pop überschreibt nicht mehr den Flip */
+    .tile.pop{ transform: scale(1.03); }
 
     /* ===== Status ===== */
     .status{
@@ -436,9 +426,14 @@
         const inner = document.createElement("div");
         inner.className = "tileInner";
 
-                const letter = document.createElement("div");
-        letter.className = "letter";
-        inner.appendChild(letter);
+        const front = document.createElement("div");
+        front.className = "face front";
+
+        const back = document.createElement("div");
+        back.className = "face back";
+
+        inner.appendChild(front);
+        inner.appendChild(back);
         tile.appendChild(inner);
 
         row.appendChild(tile);
@@ -510,7 +505,6 @@
       .replace(/[^A-ZÄÖÜ]/g, "");
 
     function isValidWord(w) {
-      // must be EXACTLY 4 letters
       if (w.length !== WORD_LEN) return false;
       if (ALWAYS_ALLOWED.has(w)) return true;
       return dictReady && DICT.has(w);
@@ -539,9 +533,10 @@
       return result;
     }
 
-        function setTileText(r, c, ch) {
+    function setTileText(r, c, ch) {
       const tile = tiles[r][c];
-      tile.querySelector(".letter").textContent = ch || "";
+      tile.querySelector(".front").textContent = ch || "";
+      tile.querySelector(".back").textContent  = ch || "";
     }
 
     function clearTileClasses(tile) {
@@ -584,9 +579,8 @@
     async function revealRowWithFlip(r, guess, colors) {
       isBusy = true;
 
-      // slower + smoother sequencing
-      const perDelay = 220;        // was 170
-      const midFlip  = 430;        // about half of 860ms transition
+      const perDelay = 170;
+      const midFlip  = 340;
 
       for (let c = 0; c < WORD_LEN; c++) {
         const tile = tiles[r][c];
@@ -594,12 +588,10 @@
         setTileText(r, c, letter);
 
         const delay = c * perDelay;
-
         setTimeout(() => {
-          // start flip and KEEP it flipped (no removing => no "double flip")
+          // FIX: dauerhaft flippen (nicht wieder zurück)
           tile.classList.add("flipped");
 
-          // color + keyboard update around the "mid point" of flip
           setTimeout(() => {
             tile.classList.add(colors[c]);
             mergeKeyState(letter, colors[c]);
@@ -608,7 +600,7 @@
         }, delay);
       }
 
-      const total = (WORD_LEN - 1) * perDelay + 900;
+      const total = (WORD_LEN - 1) * perDelay + 760;
       await new Promise(res => setTimeout(res, total));
       isBusy = false;
     }
@@ -659,7 +651,7 @@
         const lines = text.split(/\r?\n/);
 
         for (const line of lines) {
-          const raw = sanitizeDict(line.trim()); // no slice here!
+          const raw = sanitizeDict(line.trim());
           if (raw.length === WORD_LEN) DICT.add(raw);
         }
 
@@ -682,6 +674,7 @@
 
       const idx = current.length - 1;
       const tile = tiles[tryIndex][idx];
+
       tile.classList.add("pop");
       setTimeout(() => tile.classList.remove("pop"), 90);
 
