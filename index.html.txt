@@ -1,0 +1,750 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Begriffel</title>
+
+  <style>
+    :root{
+      --bg:#fff;
+      --text:#111;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+
+      --green:#22c55e;
+      --yellow:#eab308;
+      --gray:#9ca3af;
+
+      --radius:18px;
+      --tile-radius:14px;
+      --shadow: 0 20px 60px rgba(0,0,0,.12);
+
+      /* Layout tuning */
+      --maxWrap: 680px;
+
+      /* Tile sizing (computed via JS) */
+      --gap: 10px;
+      --boardPad: 14px;
+      --tileSize: 64px;
+      --tileFont: 28px;
+
+      /* Keyboard */
+      --keyH: 44px;
+      --keyGap: 8px;
+
+      /* Extra spacing control */
+      --stagePadY: 12px;
+      --stagePadX: 12px;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      background:var(--bg);
+      color:var(--text);
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      overflow:hidden; /* no scroll */
+    }
+
+    /* ===== Main layout ===== */
+    .stage{
+      height:100dvh;
+      padding:
+        calc(var(--stagePadY) + env(safe-area-inset-top))
+        calc(var(--stagePadX) + env(safe-area-inset-right))
+        calc(var(--stagePadY) + env(safe-area-inset-bottom))
+        calc(var(--stagePadX) + env(safe-area-inset-left));
+      display:grid;
+      place-items:center;
+    }
+
+    .wrap{
+      width:min(var(--maxWrap), 100%);
+      height:100%;
+      max-height: 980px;
+      display:grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 10px;
+      justify-items:center;
+      text-align:center;
+      min-height: 0;
+    }
+
+    header{
+      width:100%;
+      display:grid;
+      gap: 6px;
+      justify-items:center;
+    }
+    h1{
+      margin:0;
+      font-size: 22px;
+      letter-spacing:.2px;
+      line-height:1.1;
+    }
+    p{
+      margin:0;
+      color:var(--muted);
+      font-size: 14px;
+      line-height:1.25;
+    }
+
+    .game{
+      width:100%;
+      display:grid;
+      grid-template-rows: 1fr auto;
+      gap: 10px;
+      align-items:center;
+      min-height: 0;
+    }
+
+    /* ===== Board ===== */
+    .board{
+      width:100%;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      padding: var(--boardPad);
+      background:#fff;
+      display:grid;
+      gap: var(--gap);
+      align-content:center;
+      justify-content:center;
+      min-height: 0;
+    }
+
+    .row{
+      display:grid;
+      grid-template-columns: repeat(4, var(--tileSize));
+      gap: var(--gap);
+      justify-content:center;
+    }
+
+    .row.shake{
+      animation: shake 380ms ease;
+    }
+    @keyframes shake{
+      0%, 100% { transform: translateX(0); }
+      20% { transform: translateX(-10px); }
+      40% { transform: translateX(10px); }
+      60% { transform: translateX(-8px); }
+      80% { transform: translateX(8px); }
+    }
+
+    .tile{
+      width: var(--tileSize);
+      aspect-ratio: 1/1;
+      perspective: 900px;
+      border-radius: var(--tile-radius);
+      user-select:none;
+      overflow:hidden; /* ensures full fill looks clean */
+    }
+
+    .tileInner{
+      width:100%;
+      height:100%;
+      border:2px solid var(--border);
+      border-radius: var(--tile-radius);
+      display:grid;
+      place-items:center;
+      font-weight:900;
+      font-size: var(--tileFont);
+      letter-spacing:1px;
+      text-transform:uppercase;
+      background:#fff;
+      transform-style: preserve-3d;
+      transition:
+        transform 700ms cubic-bezier(.18,.9,.22,1),
+        border-color 220ms ease,
+        background-color 220ms ease;
+    }
+
+    .tile.revealing .tileInner{ transform: rotateX(180deg); }
+
+    .face{
+      grid-area: 1 / 1;
+      backface-visibility: hidden;
+      width:100%;
+      height:100%;
+      display:grid;
+      place-items:center;
+      border-radius: var(--tile-radius);
+    }
+    .front{ background:#fff; color:var(--text); }
+    .back{ transform: rotateX(180deg); color:#fff; }
+
+    /* ===== Full-fill colors like real Wordle ===== */
+    .tile.green .tileInner{
+      border-color: var(--green);
+      background: var(--green);
+      color:#fff;
+    }
+    .tile.yellow .tileInner{
+      border-color: var(--yellow);
+      background: var(--yellow);
+      color:#111;
+    }
+    .tile.gray .tileInner{
+      border-color: var(--gray);
+      background: var(--gray);
+      color:#fff;
+    }
+    /* Prevent faces from painting over the filled background */
+    .tile.green .front, .tile.green .back,
+    .tile.yellow .front, .tile.yellow .back,
+    .tile.gray .front, .tile.gray .back{
+      background: transparent;
+      color: inherit;
+    }
+
+    .tile.pop .tileInner{ transform: scale(1.03); }
+
+    /* ===== Status ===== */
+    .status{
+      width:100%;
+      display:grid;
+      gap: 6px;
+    }
+    .msg{
+      min-height: 18px;
+      font-weight:800;
+      font-size: 14px;
+      color:#111;
+    }
+    .footer{
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    /* ===== Keyboard ===== */
+    .kb{
+      width:100%;
+      display:grid;
+      gap: var(--keyGap);
+      user-select:none;
+      -webkit-user-select:none;
+      touch-action: manipulation;
+      padding-bottom: env(safe-area-inset-bottom);
+    }
+
+    .kbRow{
+      display:grid;
+      gap: 6px;
+    }
+    .kbRow.first{ grid-template-columns: repeat(10, 1fr); }
+    .kbRow.second{ grid-template-columns: repeat(9, 1fr); padding: 0 10px; }
+    .kbRow.third{ grid-template-columns: 1.35fr repeat(7, 1fr) 1.35fr; }
+
+    .key{
+      border:1px solid var(--border);
+      background:#f3f4f6;
+      color:#111;
+      border-radius: 12px;
+      height: var(--keyH);
+      display:grid;
+      place-items:center;
+      font-weight: 900;
+      font-size: 14px;
+      cursor:pointer;
+      transition: transform 90ms ease, opacity 120ms ease;
+    }
+    .key:active{ transform: scale(.98); }
+    .key.green{ background: var(--green); border-color: var(--green); color:#fff; }
+    .key.yellow{ background: var(--yellow); border-color: var(--yellow); color:#111; }
+    .key.gray{ background: var(--gray); border-color: var(--gray); color:#fff; }
+
+    /* ===== Modal ===== */
+    .modalOverlay{
+      position:fixed;
+      inset:0;
+      background: rgba(0,0,0,.35);
+      display:none;
+      align-items:center;
+      justify-content:center;
+      padding: 18px;
+      z-index: 9999;
+    }
+    .modalOverlay.show{ display:flex; }
+    .modal{
+      width:min(520px, 100%);
+      background:#fff;
+      border-radius: 22px;
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      padding: 18px;
+      text-align:center;
+      display:grid;
+      gap: 10px;
+    }
+    .modal h2{ margin:0; font-size: 20px; font-weight: 900; }
+    .modal .sub{ margin:0; color: var(--muted); font-weight: 700; font-size: 14px; }
+    .modal .word{ font-size: 26px; font-weight: 1000; letter-spacing: 2px; }
+    .modal .btnRow{ display:grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 4px; }
+    .modalBtn{
+      padding: 14px 16px;
+      border-radius: 14px;
+      font-weight: 900;
+      font-size: 15px;
+      cursor:pointer;
+      border: 1px solid var(--border);
+    }
+    .btnLight{ background:#fff; color:#111; }
+    .btnDark{ background:#111; color:#fff; }
+
+    /* ===== DEVICE TUNING ===== */
+    @media (max-width: 520px){
+      :root{
+        --gap: 9px;
+        --boardPad: 12px;
+        --keyH: 40px;
+        --keyGap: 7px;
+        --stagePadY: 10px;
+        --stagePadX: 10px;
+      }
+      h1{ font-size: 20px; }
+      p{ font-size: 13px; }
+      .key{ font-size: 13px; border-radius: 11px; }
+    }
+
+    @media (min-width: 900px){
+      :root{
+        --maxWrap: 760px;
+        --keyH: 48px;
+        --stagePadY: 16px;
+        --stagePadX: 16px;
+      }
+      h1{ font-size: 26px; }
+      p{ font-size: 14px; }
+      .wrap{ max-height: 900px; }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="stage">
+    <main class="wrap" id="wrap">
+      <header id="header">
+        <h1>Begriffel</h1>
+        <p>4 Buchstaben. 6 Versuche.</p>
+      </header>
+
+      <section class="game">
+        <section class="board" id="board" aria-label="Spielbrett"></section>
+
+        <section class="status" id="status">
+          <div class="msg" id="msg" aria-live="polite"></div>
+          <div class="footer" id="dictStatus">Wörterbuch wird geladen …</div>
+        </section>
+      </section>
+
+      <section class="kb" id="keyboard" aria-label="Tastatur">
+        <div class="kbRow first">
+          <div class="key" data-key="Q">Q</div><div class="key" data-key="W">W</div><div class="key" data-key="E">E</div><div class="key" data-key="R">R</div><div class="key" data-key="T">T</div>
+          <div class="key" data-key="Z">Z</div><div class="key" data-key="U">U</div><div class="key" data-key="I">I</div><div class="key" data-key="O">O</div><div class="key" data-key="P">P</div>
+        </div>
+
+        <div class="kbRow second">
+          <div class="key" data-key="A">A</div><div class="key" data-key="S">S</div><div class="key" data-key="D">D</div><div class="key" data-key="F">F</div><div class="key" data-key="G">G</div>
+          <div class="key" data-key="H">H</div><div class="key" data-key="J">J</div><div class="key" data-key="K">K</div><div class="key" data-key="L">L</div>
+        </div>
+
+        <div class="kbRow third">
+          <div class="key" data-key="ENTER">Enter</div>
+          <div class="key" data-key="Y">Y</div><div class="key" data-key="X">X</div><div class="key" data-key="C">C</div><div class="key" data-key="V">V</div>
+          <div class="key" data-key="B">B</div><div class="key" data-key="N">N</div><div class="key" data-key="M">M</div>
+          <div class="key" data-key="BACKSPACE">⌫</div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div class="modalOverlay" id="modalOverlay" role="dialog" aria-modal="true" aria-label="Ergebnis">
+    <div class="modal">
+      <h2>Geschafft! 🎉</h2>
+      <p class="sub">Happy Birthday ❤️</p>
+      <div class="word" id="modalWord">----</div>
+      <div class="btnRow">
+        <button class="modalBtn btnLight" id="playAgain">Nochmal</button>
+        <button class="modalBtn btnDark" id="closeModal">Schließen</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // ===== Config =====
+    const ANSWER = "PRIM";
+    const WORD_LEN = 4;
+    const MAX_TRIES = 6;
+
+    const ALWAYS_ALLOWED = new Set([ANSWER]);
+    const SHAKE_ON_WRONG_GUESS = false;
+
+    // ===== State =====
+    let tryIndex = 0;
+    let isOver = false;
+    let isBusy = false;
+    let current = "";
+
+    let DICT = new Set();
+    let dictReady = false;
+
+    const keyState = new Map(); // letter -> best color
+
+    // ===== DOM =====
+    const headerEl = document.getElementById("header");
+    const statusEl = document.getElementById("status");
+    const boardEl = document.getElementById("board");
+    const msgEl = document.getElementById("msg");
+    const dictStatusEl = document.getElementById("dictStatus");
+    const kbEl = document.getElementById("keyboard");
+
+    const overlay = document.getElementById("modalOverlay");
+    const playAgainBtn = document.getElementById("playAgain");
+    const closeModalBtn = document.getElementById("closeModal");
+    const modalWordEl = document.getElementById("modalWord");
+
+    // ===== Build board =====
+    const rows = [];
+    const tiles = [];
+    for (let r = 0; r < MAX_TRIES; r++) {
+      const row = document.createElement("div");
+      row.className = "row";
+      rows.push(row);
+
+      const rowTiles = [];
+      for (let c = 0; c < WORD_LEN; c++) {
+        const tile = document.createElement("div");
+        tile.className = "tile";
+
+        const inner = document.createElement("div");
+        inner.className = "tileInner";
+
+        const front = document.createElement("div");
+        front.className = "face front";
+
+        const back = document.createElement("div");
+        back.className = "face back";
+
+        inner.appendChild(front);
+        inner.appendChild(back);
+        tile.appendChild(inner);
+
+        row.appendChild(tile);
+        rowTiles.push(tile);
+      }
+
+      boardEl.appendChild(row);
+      tiles.push(rowTiles);
+    }
+
+    // ===== Responsive tile sizing =====
+    function setVar(name, value){ document.documentElement.style.setProperty(name, value); }
+
+    function recalcSizes(){
+      const vw = window.innerWidth;
+      const isMobile = vw <= 520;
+
+      const keyH = isMobile ? 40 : (vw >= 900 ? 48 : 44);
+      const keyGap = isMobile ? 7 : 8;
+      setVar("--keyH", keyH + "px");
+      setVar("--keyGap", keyGap + "px");
+
+      requestAnimationFrame(() => {
+        const vh = window.innerHeight;
+
+        const headerH = headerEl.getBoundingClientRect().height || (isMobile ? 72 : 84);
+        const statusH = statusEl.getBoundingClientRect().height || 46;
+        const kbH = kbEl.getBoundingClientRect().height || ((keyH * 3) + (keyGap * 2) + 24);
+
+        const stageStyle = getComputedStyle(document.querySelector(".stage"));
+        const stagePadTop = parseFloat(stageStyle.paddingTop) || 0;
+        const stagePadBottom = parseFloat(stageStyle.paddingBottom) || 0;
+
+        const availableForBoard =
+          vh - stagePadTop - stagePadBottom - headerH - statusH - kbH - 24;
+
+        const boardPad = isMobile ? 12 : 14;
+        const gap = isMobile ? 9 : 10;
+
+        const wrapW = Math.min(vw - 24, (vw >= 900 ? 760 : 680));
+        const tileW = Math.floor((wrapW - (boardPad * 2) - (gap * (WORD_LEN - 1))) / WORD_LEN);
+
+        const tileH = Math.floor((availableForBoard - (boardPad * 2) - (gap * (MAX_TRIES - 1))) / MAX_TRIES);
+
+        const tileSize = Math.max(44, Math.min(tileW, tileH, isMobile ? 70 : 84));
+        const font = Math.max(18, Math.floor(tileSize * 0.44));
+
+        setVar("--boardPad", boardPad + "px");
+        setVar("--gap", gap + "px");
+        setVar("--tileSize", tileSize + "px");
+        setVar("--tileFont", font + "px");
+      });
+    }
+
+    window.addEventListener("resize", recalcSizes);
+    window.addEventListener("orientationchange", () => setTimeout(recalcSizes, 150));
+    recalcSizes();
+
+    // ===== Helpers =====
+    const setMsg = (t) => { msgEl.textContent = t || ""; };
+
+    const sanitizeInput = (v) => (v || "")
+      .toUpperCase()
+      .replace(/[^A-ZÄÖÜ]/g, "")
+      .slice(0, WORD_LEN);
+
+    const sanitizeDict = (v) => (v || "")
+      .toUpperCase()
+      .replace(/[^A-ZÄÖÜ]/g, "");
+
+    function isValidWord(w) {
+      // must be EXACTLY 4 letters
+      if (w.length !== WORD_LEN) return false;
+      if (ALWAYS_ALLOWED.has(w)) return true;
+      return dictReady && DICT.has(w);
+    }
+
+    function evaluateGuess(guess, answer) {
+      const result = Array(WORD_LEN).fill("gray");
+      const answerArr = answer.split("");
+      const guessArr = guess.split("");
+
+      for (let i = 0; i < WORD_LEN; i++) {
+        if (guessArr[i] === answerArr[i]) {
+          result[i] = "green";
+          answerArr[i] = null;
+          guessArr[i] = null;
+        }
+      }
+      for (let i = 0; i < WORD_LEN; i++) {
+        if (guessArr[i] == null) continue;
+        const idx = answerArr.indexOf(guessArr[i]);
+        if (idx !== -1) {
+          result[i] = "yellow";
+          answerArr[idx] = null;
+        }
+      }
+      return result;
+    }
+
+    function setTileText(r, c, ch) {
+      const tile = tiles[r][c];
+      tile.querySelector(".front").textContent = ch || "";
+      tile.querySelector(".back").textContent  = ch || "";
+    }
+
+    function clearTileClasses(tile) {
+      tile.classList.remove("green","yellow","gray","revealing","pop");
+    }
+
+    function paintRowTyping() {
+      for (let c = 0; c < WORD_LEN; c++) {
+        const tile = tiles[tryIndex][c];
+        if (tile.classList.contains("green") || tile.classList.contains("yellow") || tile.classList.contains("gray")) continue;
+        setTileText(tryIndex, c, current[c] || "");
+      }
+    }
+
+    function shakeRow(r) {
+      const row = rows[r];
+      row.classList.remove("shake");
+      void row.offsetWidth;
+      row.classList.add("shake");
+    }
+
+    function mergeKeyState(letter, color) {
+      const prev = keyState.get(letter);
+      const rank = (x) => x === "green" ? 3 : x === "yellow" ? 2 : x === "gray" ? 1 : 0;
+      if (rank(color) > rank(prev)) keyState.set(letter, color);
+    }
+
+    function updateKeyboardVisuals(reset=false) {
+      const keys = kbEl.querySelectorAll(".key");
+      keys.forEach(k => {
+        if (reset) k.classList.remove("green","yellow","gray");
+        const key = k.getAttribute("data-key");
+        if (!key || key.length !== 1) return;
+        const state = keyState.get(key);
+        k.classList.remove("green","yellow","gray");
+        if (state) k.classList.add(state);
+      });
+    }
+
+    async function revealRowWithFlip(r, guess, colors) {
+      isBusy = true;
+      const perDelay = 170;
+      const midFlip = 340;
+
+      for (let c = 0; c < WORD_LEN; c++) {
+        const tile = tiles[r][c];
+        const letter = guess[c];
+        setTileText(r, c, letter);
+
+        const delay = c * perDelay;
+        setTimeout(() => {
+          tile.classList.add("revealing");
+          setTimeout(() => {
+            tile.classList.add(colors[c]);
+            mergeKeyState(letter, colors[c]);
+            updateKeyboardVisuals();
+          }, midFlip);
+          setTimeout(() => tile.classList.remove("revealing"), 700);
+        }, delay);
+      }
+
+      const total = (WORD_LEN - 1) * perDelay + 760;
+      await new Promise(res => setTimeout(res, total));
+      isBusy = false;
+    }
+
+    // ===== Modal =====
+    function openModal() {
+      modalWordEl.textContent = ANSWER;
+      overlay.classList.add("show");
+      document.body.style.overflow = "hidden";
+    }
+    function closeModal() {
+      overlay.classList.remove("show");
+      document.body.style.overflow = "hidden";
+    }
+    function endGame(win) {
+      isOver = true;
+      if (win) openModal();
+      else setMsg(`Leider nein 😈 Das Wort war: ${ANSWER}`);
+    }
+
+    function resetGame() {
+      tryIndex = 0;
+      isOver = false;
+      isBusy = false;
+      current = "";
+      keyState.clear();
+      setMsg("");
+      updateKeyboardVisuals(true);
+
+      for (let r = 0; r < MAX_TRIES; r++) {
+        rows[r].classList.remove("shake");
+        for (let c = 0; c < WORD_LEN; c++) {
+          const tile = tiles[r][c];
+          clearTileClasses(tile);
+          setTileText(r, c, "");
+        }
+      }
+      recalcSizes();
+    }
+
+    // ===== Dictionary loading =====
+    async function loadDictionary() {
+      try {
+        const res = await fetch("words4.txt", { cache: "no-store" });
+        if (!res.ok) throw new Error("HTTP " + res.status);
+
+        const text = await res.text();
+        const lines = text.split(/\r?\n/);
+
+        for (const line of lines) {
+          const raw = sanitizeDict(line.trim()); // no slice here!
+          if (raw.length === WORD_LEN) DICT.add(raw);
+        }
+
+        dictReady = true;
+        dictStatusEl.textContent = `Wörterbuch geladen (${DICT.size} Wörter).`;
+      } catch (e) {
+        dictReady = false;
+        dictStatusEl.textContent = "Wörterbuch konnte nicht geladen werden (Datei fehlt?).";
+        setMsg("Fehler: Wortliste nicht gefunden. Lege words4.txt neben index.html.");
+      } finally {
+        recalcSizes();
+      }
+    }
+    loadDictionary();
+
+    // ===== Input handlers =====
+    function addLetter(ch) {
+      if (current.length >= WORD_LEN) return;
+      current += ch;
+
+      const idx = current.length - 1;
+      const tile = tiles[tryIndex][idx];
+      tile.classList.add("pop");
+      setTimeout(() => tile.classList.remove("pop"), 90);
+
+      paintRowTyping();
+    }
+
+    function backspace() {
+      if (current.length === 0) return;
+      current = current.slice(0, -1);
+      paintRowTyping();
+      setTileText(tryIndex, current.length, "");
+    }
+
+    async function submit() {
+      if (isOver || isBusy) return;
+
+      if (!dictReady) { setMsg("Wörterbuch lädt noch …"); shakeRow(tryIndex); return; }
+
+      const guess = current;
+      if (guess.length !== WORD_LEN) { setMsg(`Bitte genau ${WORD_LEN} Buchstaben.`); shakeRow(tryIndex); return; }
+      if (!isValidWord(guess)) { setMsg("Das ist kein gültiges deutsches Wort."); shakeRow(tryIndex); return; }
+
+      setMsg("");
+      const colors = evaluateGuess(guess, ANSWER);
+      await revealRowWithFlip(tryIndex, guess, colors);
+
+      if (guess === ANSWER) { endGame(true); return; }
+      if (SHAKE_ON_WRONG_GUESS) shakeRow(tryIndex);
+
+      tryIndex++;
+      current = "";
+
+      if (tryIndex >= MAX_TRIES) endGame(false);
+      else paintRowTyping();
+    }
+
+    // Physical keyboard
+    document.addEventListener("keydown", (e) => {
+      if (overlay.classList.contains("show")) {
+        if (e.key === "Escape") closeModal();
+        return;
+      }
+      if (isOver || isBusy) return;
+
+      if (e.key === "Enter") return submit();
+      if (e.key === "Backspace") return backspace();
+
+      const letter = sanitizeInput(e.key);
+      if (letter.length === 1) addLetter(letter);
+    });
+
+    // On-screen keyboard
+    kbEl.addEventListener("click", (e) => {
+      const btn = e.target.closest(".key");
+      if (!btn) return;
+      if (overlay.classList.contains("show")) return;
+      if (isOver || isBusy) return;
+
+      const key = btn.getAttribute("data-key");
+      if (!key) return;
+
+      if (key === "ENTER") submit();
+      else if (key === "BACKSPACE") backspace();
+      else if (key.length === 1) addLetter(key);
+    });
+
+    // Modal buttons
+    closeModalBtn.addEventListener("click", closeModal);
+    playAgainBtn.addEventListener("click", () => {
+      closeModal();
+      resetGame();
+    });
+    overlay.addEventListener("click", (e) => {
+      if (e.target === overlay) closeModal();
+    });
+
+    resetGame();
+  </script>
+</body>
+</html>
