@@ -175,7 +175,7 @@
       border-radius: var(--tile-radius);
     }
     .front{ background:#fff; color:var(--text); }
-    .back{ transform: rotateX(180deg); color:#fff; }
+    .back{ transform: rotateX(180deg); color:transparent; }
 
     /* ===== Full-fill colors like real Wordle ===== */
     .tile.green .tileInner{
@@ -533,10 +533,9 @@
     }
 
     function setTileText(r, c, ch) {
-      const tile = tiles[r][c];
-      tile.querySelector(".front").textContent = ch || "";
-      tile.querySelector(".back").textContent  = ch || "";
-    }
+  const tile = tiles[r][c];
+  tile.querySelector(".front").textContent = ch || "";
+}
 
     function clearTileClasses(tile) {
       tile.classList.remove("green","yellow","gray","flipped","pop");
