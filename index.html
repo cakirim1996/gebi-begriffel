@@ -617,14 +617,16 @@
 
     // ===== Modal =====
     function openModal() {
-      modalWordEl.textContent = ANSWER;
-      overlay.classList.add("show");
-      document.body.style.overflow = "hidden";
-    }
+  modalWordEl.textContent = ANSWER;
+  overlay.classList.add("show");
+  document.body.style.overflow = "hidden";
+  startConfetti(); // <-- NEU
+}
     function closeModal() {
-      overlay.classList.remove("show");
-      document.body.style.overflow = "hidden";
-    }
+  overlay.classList.remove("show");
+  document.body.style.overflow = "hidden";
+  stopConfetti(); // <-- NEU
+}
     function endGame(win) {
       isOver = true;
       if (win) openModal();
@@ -632,6 +634,7 @@
     }
 
     function resetGame() {
+  stopConfetti(); // <-- NEU
       tryIndex = 0;
       isOver = false;
       isBusy = false;
